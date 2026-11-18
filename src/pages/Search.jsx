@@ -20,19 +20,29 @@ const CATEGORIES = [
 export default function Search() {
   const toast = useToastContext()
   const [searchParams] = useSearchParams()
-  const [form, setForm] = useState({ location: '', radius: '5', category: '', keyword: '' })
+  const [form, setForm] = useState({
+    location: '',
+    lat: '',
+    lng: '',
+    radius: '5',
+    category: '',
+    keyword: '',
+  })
+  const [locationSuggestions, setLocationSuggestions] = useState([])
+  const [locationSuggestionsLoading, setLocationSuggestionsLoading] = useState(false)
+  const [locationSuggestionsError, setLocationSuggestionsError] = useState('')
   const [results, setResults] = useState(null)
   const [selectedBusiness, setSelectedBusiness] = useState(null)
   const [messageOpen, setMessageOpen] = useState(false)
   const [selected, setSelected] = useState(new Set())
   const [bulkGoal, setBulkGoal] = useState('')
-  const [bulkChannel, setBulkChannel] = useState('email')
-  const [whatsappOptInConfirmed, setWhatsappOptInConfirmed] = useState(false)
   const [bulkLoading, setBulkLoading] = useState(false)
 
   // Read URL parameters and set form values
   useEffect(() => {
     const location = searchParams.get('location')
+    const lat = searchParams.get('lat')
+    const lng = searchParams.get('lng')
     const radius = searchParams.get('radius')
     const category = searchParams.get('category')
     const keyword = searchParams.get('keyword')
@@ -40,12 +50,74 @@ export default function Search() {
     if (location || radius || category || keyword) {
       setForm({
         location: location || '',
+        lat: lat || '',
+        lng: lng || '',
         radius: radius || '5',
         category: category || '',
         keyword: keyword || ''
       })
     }
   }, [searchParams])
+
+  useEffect(() => {
+    const query = form.location.trim()
+    if (query.length < 3 || (form.lat && form.lng)) {
+      setLocationSuggestions([])
+      setLocationSuggestionsLoading(false)
+      setLocationSuggestionsError('')
+      return undefined
+    }
+
+    const controller = new AbortController()
+    const timeoutId = setTimeout(async () => {
+      setLocationSuggestionsLoading(true)
+      setLocationSuggestionsError('')
+
+      try {
+        const params = new URLSearchParams({ q: query, limit: '6', lang: 'en' })
+        const response = await fetch(`https://photon.komoot.io/api/?${params}`, {
+          signal: controller.signal,
+        })
+
+        if (!response.ok) {
+          throw new Error(`Location suggestions failed (${response.status}).`)
+        }
+
+        const data = await response.json()
+        const suggestions = (data.features || []).flatMap((feature) => {
+          const [longitude, latitude] = feature.geometry?.coordinates || []
+          if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return []
+
+          const properties = feature.properties || {}
+          const label = [
+            properties.name,
+            properties.street,
+            properties.city,
+            properties.state,
+            properties.country,
+          ]
+            .filter((part, index, parts) => part && parts.indexOf(part) === index)
+            .join(', ')
+
+          return label ? [{ label, latitude, longitude }] : []
+        })
+
+        setLocationSuggestions(suggestions)
+      } catch (error) {
+        if (error.name !== 'AbortError') {
+          setLocationSuggestions([])
+          setLocationSuggestionsError(error.message)
+        }
+      } finally {
+        if (!controller.signal.aborted) setLocationSuggestionsLoading(false)
+      }
+    }, 350)
+
+    return () => {
+      clearTimeout(timeoutId)
+      controller.abort()
+    }
+  }, [form.location, form.lat, form.lng])
 
   const searchMutation = useMutation({
     mutationFn: () => searchBusinesses(Object.fromEntries(
@@ -64,6 +136,17 @@ export default function Search() {
     e.preventDefault()
     if (!form.location) { toast('Location is required', 'warning'); return }
     searchMutation.mutate()
+  }
+
+  const selectLocation = (suggestion) => {
+    setForm((current) => ({
+      ...current,
+      location: suggestion.label,
+      lat: String(suggestion.latitude),
+      lng: String(suggestion.longitude),
+    }))
+    setLocationSuggestions([])
+    setLocationSuggestionsError('')
   }
 
   const openMessage = (business) => {
@@ -90,16 +173,11 @@ export default function Search() {
 
   const handleBulkSend = async () => {
     if (selected.size === 0) { toast('Select at least one business', 'warning'); return }
-    if (bulkChannel === 'whatsapp' && !whatsappOptInConfirmed) {
-      toast('Confirm that the selected recipients opted in to WhatsApp messages', 'warning')
-      return
-    }
     setBulkLoading(true)
     try {
       const res = await bulkSendMessages({
         businessIds: [...selected],
-        channel: bulkChannel,
-        whatsappOptInConfirmed,
+        channel: 'email',
         userGoal: bulkGoal,
       })
       const { sent, failed } = res.data.summary
@@ -120,12 +198,71 @@ export default function Search() {
 
       <form onSubmit={handleSearch} className="bg-white rounded-xl border border-gray-200 p-4 md:p-5 space-y-4">
         <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
-          <Input
-            label="Location"
-            placeholder="e.g. New York, NY"
-            value={form.location}
-            onChange={(e) => setForm({ ...form, location: e.target.value })}
-          />
+          <div className="relative">
+            <Input
+              label="Location"
+              placeholder="Start typing a city or address"
+              autoComplete="off"
+              role="combobox"
+              aria-autocomplete="list"
+              aria-expanded={locationSuggestions.length > 0}
+              value={form.location}
+              onChange={(e) => setForm({
+                ...form,
+                location: e.target.value,
+                lat: '',
+                lng: '',
+              })}
+            />
+            {locationSuggestionsLoading && (
+              <p className="mt-1 text-xs text-gray-500">Finding locations...</p>
+            )}
+            {locationSuggestionsError && (
+              <p className="mt-1 text-xs text-red-600">{locationSuggestionsError}</p>
+            )}
+            {locationSuggestions.length > 0 && (
+              <ul
+                role="listbox"
+                className="absolute z-20 mt-1 max-h-64 w-full overflow-auto rounded-lg border border-gray-200 bg-white py-1 shadow-lg"
+              >
+                {locationSuggestions.map((suggestion) => (
+                  <li
+                    key={`${suggestion.latitude}-${suggestion.longitude}-${suggestion.label}`}
+                    role="option"
+                    aria-selected="false"
+                  >
+                    <button
+                      type="button"
+                      className="w-full px-3 py-2 text-left hover:bg-gray-50"
+                      onClick={() => selectLocation(suggestion)}
+                    >
+                      <span className="block text-sm text-gray-800">{suggestion.label}</span>
+                      <span className="block text-xs text-gray-500">
+                        Lat {suggestion.latitude.toFixed(5)}, Lng {suggestion.longitude.toFixed(5)}
+                      </span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+            {form.lat && form.lng && (
+              <p className="mt-1 text-xs text-gray-500">
+                Selected coordinates: {Number(form.lat).toFixed(5)}, {Number(form.lng).toFixed(5)}
+              </p>
+            )}
+            <p className="mt-1 text-xs text-gray-400">
+              Suggestions by Photon, using{' '}
+              <a
+                href="https://www.openstreetmap.org/copyright"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="underline hover:text-gray-600"
+              >
+                OpenStreetMap data
+              </a>
+              .
+            </p>
+          </div>
           <Input
             label="Radius (km)"
             type="number"
@@ -183,39 +320,16 @@ export default function Search() {
 
                 {selected.size > 0 && (
                   <div className="flex items-center gap-2 flex-wrap">
-                    <Select
-                      label="Channel"
-                      value={bulkChannel}
-                      onChange={(e) => {
-                        setBulkChannel(e.target.value)
-                        setWhatsappOptInConfirmed(false)
-                      }}
-                      className="w-32"
-                    >
-                      <option value="email">Email</option>
-                      <option value="whatsapp">WhatsApp</option>
-                    </Select>
                     <Input
                       placeholder="Bulk goal (optional)"
                       value={bulkGoal}
                       onChange={(e) => setBulkGoal(e.target.value)}
                       className="w-48"
                     />
-                    {bulkChannel === 'whatsapp' && (
-                      <label className="flex items-center gap-2 text-xs text-gray-600">
-                        <input
-                          type="checkbox"
-                          checked={whatsappOptInConfirmed}
-                          onChange={(e) => setWhatsappOptInConfirmed(e.target.checked)}
-                        />
-                        Recipients opted in
-                      </label>
-                    )}
                     <Button
                       size="sm"
                       onClick={handleBulkSend}
                       loading={bulkLoading}
-                      disabled={bulkChannel === 'whatsapp' && !whatsappOptInConfirmed}
                     >
                       Send to {selected.size}
                     </Button>

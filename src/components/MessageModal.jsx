@@ -3,25 +3,21 @@ import { useMutation } from '@tanstack/react-query'
 import { Wand2, Send } from 'lucide-react'
 import Modal from './ui/Modal'
 import Button from './ui/Button'
-import Input, { Select, Textarea } from './ui/Input'
+import Input, { Textarea } from './ui/Input'
 import { generateMessage, sendMessage } from '../api/messages'
 import { useToastContext } from '../context/ToastContext'
 
 export default function MessageModal({ open, onClose, business }) {
   const toast = useToastContext()
-  const [channel, setChannel] = useState('email')
   const [subject, setSubject] = useState('')
   const [content, setContent] = useState('')
   const [userGoal, setUserGoal] = useState('')
-  const [whatsappOptInConfirmed, setWhatsappOptInConfirmed] = useState(false)
 
   useEffect(() => {
     if (open) {
-      setChannel('email')
       setSubject('')
       setContent('')
       setUserGoal('')
-      setWhatsappOptInConfirmed(false)
     }
   }, [open])
 
@@ -46,10 +42,9 @@ export default function MessageModal({ open, onClose, business }) {
     mutationFn: () =>
       sendMessage({
         businessId: business.id,
-        channel,
+        channel: 'email',
         content,
         subject,
-        whatsappOptInConfirmed,
         aiGenerated: generateMutation.isSuccess,
       }),
     onSuccess: () => {
@@ -72,38 +67,12 @@ export default function MessageModal({ open, onClose, business }) {
           {business.phone && <p>{business.phone}</p>}
         </div>
 
-        <Select
-          label="Channel"
-          value={channel}
-          onChange={(e) => {
-            setChannel(e.target.value)
-            setWhatsappOptInConfirmed(false)
-          }}
-        >
-          <option value="email">Email</option>
-          <option value="sms">SMS</option>
-          <option value="whatsapp">WhatsApp</option>
-        </Select>
-
-        {channel === 'whatsapp' && (
-          <label className="flex items-center gap-2 text-sm text-gray-600">
-            <input
-              type="checkbox"
-              checked={whatsappOptInConfirmed}
-              onChange={(e) => setWhatsappOptInConfirmed(e.target.checked)}
-            />
-            I confirm this recipient opted in to WhatsApp messages.
-          </label>
-        )}
-
-        {channel === 'email' && (
-          <Input
-            label="Subject"
-            placeholder="e.g. Partnership Opportunity"
-            value={subject}
-            onChange={(e) => setSubject(e.target.value)}
-          />
-        )}
+        <Input
+          label="Subject"
+          placeholder="e.g. Partnership Opportunity"
+          value={subject}
+          onChange={(e) => setSubject(e.target.value)}
+        />
 
         <Input
           label="Your Goal (for AI generation)"
@@ -134,14 +103,10 @@ export default function MessageModal({ open, onClose, business }) {
             className="flex-1"
             onClick={() => sendMutation.mutate()}
             loading={sendMutation.isPending}
-            disabled={
-              !content ||
-              generateMutation.isPending ||
-              (channel === 'whatsapp' && !whatsappOptInConfirmed)
-            }
+            disabled={!content || generateMutation.isPending}
           >
             <Send size={15} />
-            Send Message
+            Send Email
           </Button>
         </div>
       </div>

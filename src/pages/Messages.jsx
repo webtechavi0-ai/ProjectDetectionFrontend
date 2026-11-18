@@ -36,7 +36,9 @@ function MessageDetailModal({ id, open, onClose }) {
           </div>
           <div className="bg-gray-50 rounded-lg p-3 space-y-1">
             <p><span className="text-gray-500">Business:</span> <strong>{msg.business?.name}</strong></p>
-            {msg.recipient?.email && <p><span className="text-gray-500">To:</span> {msg.recipient.email}</p>}
+            {msg.channel === 'email' && msg.recipient?.email && (
+              <p><span className="text-gray-500">To:</span> {msg.recipient.email}</p>
+            )}
             {msg.channel === 'whatsapp' && msg.recipient?.phone && (
               <p><span className="text-gray-500">To:</span> {msg.recipient.phone}</p>
             )}
@@ -158,7 +160,6 @@ export default function Messages() {
             <option value="">All channels</option>
             <option value="email">Email</option>
             <option value="sms">SMS</option>
-            <option value="whatsapp">WhatsApp</option>
           </Select>
         </div>
       </div>
