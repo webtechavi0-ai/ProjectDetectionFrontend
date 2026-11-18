@@ -37,6 +37,10 @@ export default function Search() {
   const [selected, setSelected] = useState(new Set())
   const [bulkGoal, setBulkGoal] = useState('')
   const [bulkLoading, setBulkLoading] = useState(false)
+  const pinnedSchoolSelected = results?.businesses?.some(
+    (business) => business.isPinned && selected.has(business.id)
+  )
+  const bulkRecipientCount = selected.size + (pinnedSchoolSelected ? 0 : 1)
 
   // Read URL parameters and set form values
   useEffect(() => {
@@ -331,8 +335,11 @@ export default function Search() {
                       onClick={handleBulkSend}
                       loading={bulkLoading}
                     >
-                      Send to {selected.size}
+                      Send to {bulkRecipientCount}
                     </Button>
+                    <p className="w-full text-xs text-gray-500">
+                      The pinned school is included in every bulk send.
+                    </p>
                   </div>
                 )}
               </div>
