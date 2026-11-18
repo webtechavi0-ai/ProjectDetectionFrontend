@@ -37,6 +37,9 @@ function MessageDetailModal({ id, open, onClose }) {
           <div className="bg-gray-50 rounded-lg p-3 space-y-1">
             <p><span className="text-gray-500">Business:</span> <strong>{msg.business?.name}</strong></p>
             {msg.recipient?.email && <p><span className="text-gray-500">To:</span> {msg.recipient.email}</p>}
+            {msg.channel === 'whatsapp' && msg.recipient?.phone && (
+              <p><span className="text-gray-500">To:</span> {msg.recipient.phone}</p>
+            )}
             {msg.subject && <p><span className="text-gray-500">Subject:</span> {msg.subject}</p>}
             <p><span className="text-gray-500">Sent:</span> {msg.metadata?.sentAt ? new Date(msg.metadata.sentAt).toLocaleString() : 'Not sent'}</p>
           </div>

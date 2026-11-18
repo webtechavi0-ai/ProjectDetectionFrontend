@@ -13,6 +13,7 @@ export default function MessageModal({ open, onClose, business }) {
   const [subject, setSubject] = useState('')
   const [content, setContent] = useState('')
   const [userGoal, setUserGoal] = useState('')
+  const [whatsappOptInConfirmed, setWhatsappOptInConfirmed] = useState(false)
 
   useEffect(() => {
     if (open) {
@@ -20,6 +21,7 @@ export default function MessageModal({ open, onClose, business }) {
       setSubject('')
       setContent('')
       setUserGoal('')
+      setWhatsappOptInConfirmed(false)
     }
   }, [open])
 
@@ -47,6 +49,7 @@ export default function MessageModal({ open, onClose, business }) {
         channel,
         content,
         subject,
+        whatsappOptInConfirmed,
         aiGenerated: generateMutation.isSuccess,
       }),
     onSuccess: () => {
@@ -72,12 +75,26 @@ export default function MessageModal({ open, onClose, business }) {
         <Select
           label="Channel"
           value={channel}
-          onChange={(e) => setChannel(e.target.value)}
+          onChange={(e) => {
+            setChannel(e.target.value)
+            setWhatsappOptInConfirmed(false)
+          }}
         >
           <option value="email">Email</option>
           <option value="sms">SMS</option>
           <option value="whatsapp">WhatsApp</option>
         </Select>
+
+        {channel === 'whatsapp' && (
+          <label className="flex items-center gap-2 text-sm text-gray-600">
+            <input
+              type="checkbox"
+              checked={whatsappOptInConfirmed}
+              onChange={(e) => setWhatsappOptInConfirmed(e.target.checked)}
+            />
+            I confirm this recipient opted in to WhatsApp messages.
+          </label>
+        )}
 
         {channel === 'email' && (
           <Input
@@ -117,7 +134,11 @@ export default function MessageModal({ open, onClose, business }) {
             className="flex-1"
             onClick={() => sendMutation.mutate()}
             loading={sendMutation.isPending}
-            disabled={!content || generateMutation.isPending}
+            disabled={
+              !content ||
+              generateMutation.isPending ||
+              (channel === 'whatsapp' && !whatsappOptInConfirmed)
+            }
           >
             <Send size={15} />
             Send Message

@@ -13,6 +13,8 @@ function StarRating({ rating }) {
 }
 
 export default function BusinessCard({ business, onMessage, selected, onSelect }) {
+  const businessUrl = business.website || business.url
+
   return (
     <Card
       className={`transition-all cursor-pointer hover:shadow-md ${
@@ -68,20 +70,22 @@ export default function BusinessCard({ business, onMessage, selected, onSelect }
               </div>
             )}
           </div>
-          {business.website && (
-            <div className="flex items-start gap-1.5">
-              <Globe size={12} className="shrink-0 mt-0.5" />
+          <div className="flex items-start gap-1.5">
+            <Globe size={12} className="shrink-0 mt-0.5" />
+            {businessUrl ? (
               <a
-                href={business.website}
+                href={businessUrl}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="hover:text-brand-600 break-all text-blue-600"
                 onClick={(e) => e.stopPropagation()}
               >
-                {business.website.replace(/^https?:\/\//, "")}
+                {businessUrl.replace(/^https?:\/\//, "")}
               </a>
-            </div>
-          )}
+            ) : (
+              <span>URL not available</span>
+            )}
+          </div>
         </div>
 
         {business.totalRatings && (

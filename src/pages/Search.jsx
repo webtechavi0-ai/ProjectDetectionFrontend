@@ -26,6 +26,8 @@ export default function Search() {
   const [messageOpen, setMessageOpen] = useState(false)
   const [selected, setSelected] = useState(new Set())
   const [bulkGoal, setBulkGoal] = useState('')
+  const [bulkChannel, setBulkChannel] = useState('email')
+  const [whatsappOptInConfirmed, setWhatsappOptInConfirmed] = useState(false)
   const [bulkLoading, setBulkLoading] = useState(false)
 
   // Read URL parameters and set form values
@@ -88,11 +90,16 @@ export default function Search() {
 
   const handleBulkSend = async () => {
     if (selected.size === 0) { toast('Select at least one business', 'warning'); return }
+    if (bulkChannel === 'whatsapp' && !whatsappOptInConfirmed) {
+      toast('Confirm that the selected recipients opted in to WhatsApp messages', 'warning')
+      return
+    }
     setBulkLoading(true)
     try {
       const res = await bulkSendMessages({
         businessIds: [...selected],
-        channel: 'email',
+        channel: bulkChannel,
+        whatsappOptInConfirmed,
         userGoal: bulkGoal,
       })
       const { sent, failed } = res.data.summary
@@ -175,17 +182,40 @@ export default function Search() {
                 </button>
 
                 {selected.size > 0 && (
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <Select
+                      label="Channel"
+                      value={bulkChannel}
+                      onChange={(e) => {
+                        setBulkChannel(e.target.value)
+                        setWhatsappOptInConfirmed(false)
+                      }}
+                      className="w-32"
+                    >
+                      <option value="email">Email</option>
+                      <option value="whatsapp">WhatsApp</option>
+                    </Select>
                     <Input
                       placeholder="Bulk goal (optional)"
                       value={bulkGoal}
                       onChange={(e) => setBulkGoal(e.target.value)}
                       className="w-48"
                     />
+                    {bulkChannel === 'whatsapp' && (
+                      <label className="flex items-center gap-2 text-xs text-gray-600">
+                        <input
+                          type="checkbox"
+                          checked={whatsappOptInConfirmed}
+                          onChange={(e) => setWhatsappOptInConfirmed(e.target.checked)}
+                        />
+                        Recipients opted in
+                      </label>
+                    )}
                     <Button
                       size="sm"
                       onClick={handleBulkSend}
                       loading={bulkLoading}
+                      disabled={bulkChannel === 'whatsapp' && !whatsappOptInConfirmed}
                     >
                       Send to {selected.size}
                     </Button>
